@@ -1,0 +1,56 @@
+FROM openveo-common
+
+# must be provided by user calling docker build
+ARG ADMIN_OPERATOR_PASSWD
+ARG OPENVEO_OPERATOR_PASSWD
+ARG OPENVEO_USER_PASSWD
+
+# Installation de MongoDB
+RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv EA312927
+RUN echo "deb http://repo.mongodb.org/apt/ubuntu trusty/mongodb-org/3.2 multiverse" >> /etc/apt/sources.list
+RUN apt-get -y update
+RUN apt-get install -y mongodb-org
+
+# Create 'adminOPERATOR' user on 'admin' database
+ADD init_admin_db.js /tmp
+RUN mongod -f /etc/mongod.conf --fork \
+    && sleep 3 \
+    && mongo admin --verbose \
+             --eval "var ADMIN_OPERATOR_PASSWD="\"${ADMIN_OPERATOR_PASSWD}\"";" \
+             /tmp/init_admin_db.js \
+    && mongod -f /etc/mongod.conf --shutdown
+RUN rm /tmp/init_admin_db.js
+
+# Create users 'openveoOPERATOR' and 'openveoUSER' on 'openveo' database
+ADD init_openveo_db.js /tmp
+RUN mongod -f /etc/mongod.conf --fork \
+    && sleep 3 \
+    && mongo openveo --verbose \
+             --eval "var OPENVEO_OPERATOR_PASSWD="\"${OPENVEO_OPERATOR_PASSWD}\"",OPENVEO_USER_PASSWD="\"${OPENVEO_USER_PASSWD}\"";" \
+             /tmp/init_openveo_db.js \
+    && mongod -f /etc/mongod.conf --shutdown
+RUN rm /tmp/init_openveo_db.js
+
+# Creation d'un fichier d'authentification
+#RUN mkdir /srv/mongodb
+#RUN openssl rand -base64 741 > /srv/mongodb/key.pem
+
+# Configuration de MongoDB
+ADD mongod.conf /etc
+
+# Add start script
+ADD start.sh /
+RUN chown mongodb:mongodb /start.sh
+RUN chmod 755 /start.sh
+
+# Update permissions
+#RUN chown -R mongodb:mongodb /srv/mongodb
+#RUN chmod 600 /srv/mongodb/key.pem
+RUN chown -R mongodb:mongodb /var/lib/mongodb
+
+# Default user and workdir
+WORKDIR /var/lib/mongodb
+USER mongodb
+
+# start service
+CMD /start.sh
