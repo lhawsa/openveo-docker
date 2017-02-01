@@ -4,7 +4,7 @@
 db.createUser(
     {
         user: "openveoOPERATOR",
-        pwd: OPENVEO_OPERATOR_PASSWD,
+        pwd: DB_OPENVEO_OPERATOR_PASSWD,
         roles: [ "readWrite" ]
     }
 );
@@ -12,7 +12,7 @@ db.createUser(
 db.createUser(
     {
         user: "openveoUSER",
-        pwd: OPENVEO_USER_PASSWD,
+        pwd: DB_OPENVEO_USER_PASSWD,
         roles: [ "dbOwner" ]
     }
 );

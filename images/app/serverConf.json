@@ -1,0 +1,13 @@
+#!/bin/bash
+
+cat <<EOF
+{
+  "app" : {
+    "port" : 3000,
+    "sessionSecret" : "${APP_SESSION_SECRET}"
+  },
+  "ws": {
+    "port": 3001
+  }
+}
+EOF

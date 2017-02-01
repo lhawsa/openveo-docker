@@ -1,0 +1,27 @@
+#!/bin/bash
+
+cat <<EOF
+{
+  "hotFolders" : [
+    {
+      "type" : "vimeo",
+      "path" : "/user/box/hot2"
+    },
+    {
+      "type" : "youtube",
+      "path" : "/user/box/hot3"
+    },
+    {
+      "type" : "wowza",
+      "path" : "/user/box/hot4"
+    },
+    {
+      "type" : "local",
+      "path" : "/user/box/hot5"
+    },
+    {
+      "path" : "/user/box/hot1"
+    }
+  ]
+}
+EOF

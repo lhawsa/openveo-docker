@@ -3,7 +3,7 @@
 db.createUser(
     {
         user: "adminOPERATOR",
-        pwd: ADMIN_OPERATOR_PASSWD,
+        pwd: DB_ADMIN_OPERATOR_PASSWD,
         roles: [ "userAdminAnyDatabase", "dbAdminAnyDatabase", "clusterAdmin" ]
     }
 );

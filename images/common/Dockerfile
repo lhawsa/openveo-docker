@@ -11,6 +11,15 @@ RUN dpkg-reconfigure locales
 # Installation de la commande “add-apt-repository”
 RUN apt-get install -y software-properties-common
 
-# Creation d'un utilisateur openveo
-RUN useradd -ms /bin/bash openveo
+# Installation de curl
+RUN apt-get install -y curl
 
+# Installation de wget
+RUN apt-get -y install wget
+
+# Installation de host
+RUN apt-get -y install host
+
+# Installation de hostinfo
+ADD hostinfo /usr/local/bin
+RUN chmod +x /usr/local/bin/hostinfo

@@ -1,9 +1,9 @@
-FROM openveo-common
+FROM common
 
 # must be provided by user calling docker build
-ARG ADMIN_OPERATOR_PASSWD
-ARG OPENVEO_OPERATOR_PASSWD
-ARG OPENVEO_USER_PASSWD
+ARG DB_ADMIN_OPERATOR_PASSWD
+ARG DB_OPENVEO_OPERATOR_PASSWD
+ARG DB_OPENVEO_USER_PASSWD
 
 # Installation de MongoDB
 RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv EA312927
@@ -16,7 +16,7 @@ ADD init_admin_db.js /tmp
 RUN mongod -f /etc/mongod.conf --fork \
     && sleep 3 \
     && mongo admin --verbose \
-             --eval "var ADMIN_OPERATOR_PASSWD="\"${ADMIN_OPERATOR_PASSWD}\"";" \
+             --eval "var DB_ADMIN_OPERATOR_PASSWD="\"${DB_ADMIN_OPERATOR_PASSWD}\"";" \
              /tmp/init_admin_db.js \
     && mongod -f /etc/mongod.conf --shutdown
 RUN rm /tmp/init_admin_db.js
@@ -26,7 +26,7 @@ ADD init_openveo_db.js /tmp
 RUN mongod -f /etc/mongod.conf --fork \
     && sleep 3 \
     && mongo openveo --verbose \
-             --eval "var OPENVEO_OPERATOR_PASSWD="\"${OPENVEO_OPERATOR_PASSWD}\"",OPENVEO_USER_PASSWD="\"${OPENVEO_USER_PASSWD}\"";" \
+             --eval "var DB_OPENVEO_OPERATOR_PASSWD="\"${DB_OPENVEO_OPERATOR_PASSWD}\"",DB_OPENVEO_USER_PASSWD="\"${DB_OPENVEO_USER_PASSWD}\"";" \
              /tmp/init_openveo_db.js \
     && mongod -f /etc/mongod.conf --shutdown
 RUN rm /tmp/init_openveo_db.js

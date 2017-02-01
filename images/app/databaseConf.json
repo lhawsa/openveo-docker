@@ -1,0 +1,12 @@
+#!/bin/bash
+
+cat <<EOF
+{
+  "type" : "mongodb",
+  "host" : "${COMMON_PREFIX}-db0",
+  "port" : 27017,
+  "database" : "openveo",
+  "username" : "openveoUSER",
+  "password" : "${DB_OPENVEO_USER_PASSWD}"
+}
+EOF

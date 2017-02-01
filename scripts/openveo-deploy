@@ -1,14 +1,32 @@
 #!/usr/bin/python3
 
+
 import sys
 import json
 import os
 import argparse
 import string
 
+
 USED_BUILD_ARGS = {
-    'openveo-db': ['ADMIN_OPERATOR_PASSWD', 'OPENVEO_OPERATOR_PASSWD', 'OPENVEO_USER_PASSWD']
+    'db': [
+        'DB_ADMIN_OPERATOR_PASSWD',
+        'DB_OPENVEO_OPERATOR_PASSWD',
+        'DB_OPENVEO_USER_PASSWD',
+        ],
+    'app': [
+        'COMMON_PREFIX',
+        'DB_OPENVEO_USER_PASSWD',
+        'APP_SUPER_ADMIN_NAME',
+        'APP_SUPER_ADMIN_EMAIL',
+        'APP_SUPER_ADMIN_PASSWD',
+        ]
     }
+
+
+COL_GREEN = '\033[92m'
+COL_BLUE = '\033[94m'
+COL_END = '\033[0m'
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -16,20 +34,14 @@ class ArgumentParser(argparse.ArgumentParser):
 
     def __init__(self):
         argparse.ArgumentParser.__init__(self)
-        self.add_argument("-c", "--config", default=None, type=str)
+        self.add_argument("-c", "--config", default=None, type=str, metavar='CONFIG')
+        self.add_argument("-p", "--prefix", default="default", dest="prefix", type=str, metavar='PREFIX')
         self.add_argument(dest="action", nargs=1, type=str, choices=self.ACTIONS, default=None)
         self.add_argument(dest="images", nargs='*', type=str, metavar='IMG')
 
     def parse_args(self, argv):
         args = argparse.ArgumentParser.parse_args(self, argv)
         return args
-        # print(args)
-        # setattr(args, 'action', None)
-        # for a in self.ACTIONS:
-        #     if getattr(args, a):
-        #         setattr(args, 'action', a)
-        #         break
-        # return args
 
 
 class Application:
@@ -41,7 +53,7 @@ class Application:
     def getRootDir(self):
         return os.path.abspath("%s/../.." % __file__)
 
-    def makeBuildArgs(self, image):
+    def makeBuildArgs(self, args, image):
         build_args = {}
 
         try:
@@ -51,7 +63,6 @@ class Application:
 
         for a in used_build_args:
             build_args[a] = self._config['build_args'][a]
-#        build_args['HOSTNAME_SUFFIX'] = image[len('openveo-'):]
 
         cmd = []
         for k,v in build_args.items():
@@ -61,14 +72,18 @@ class Application:
 
     def loadConfig(self, args):
         if args.config==None:
-            fn = "%s/config-example.json" % self.getRootDir()
+            fn = "%s/conf/%s.json" % (self.getRootDir(), args.prefix)
         else:
             fn = args.config
         self._config = json.loads(open(fn).read())
+        self._config['build_args']['COMMON_PREFIX'] = args.prefix
 
     def __call__(self):
+        os.chdir(self.getRootDir())
         args = self._argparser.parse_args(self._argv)
-        print(args)
+        if len(args.images)==0:
+            args.images = sorted(USED_BUILD_ARGS.keys())
+
         self.loadConfig(args)
         action = args.action[0]
         try:
@@ -81,16 +96,17 @@ class Application:
         self._argparser.print_help()
 
     def system(self, cmd):
-        print("* %s" % cmd)
+        print(COL_BLUE + "* " + COL_END + COL_GREEN + cmd + COL_END)
         sts = os.system(cmd)
-        if cmd != 0:
+        if sts != 0:
             sys.exit(-1)
 
     def doBuild(self, args):
+        self.system("docker build -t common images/common")
         for img in args.images:
             cmd = "docker build "
-            cmd += self.makeBuildArgs(img)
-            cmd += " -t %s %s" % (img,img)
+            cmd += self.makeBuildArgs(args, img)
+            cmd += " -t %s-%s images/%s" % (args.prefix, img, img)
             self.system(cmd)
 
     def doNop(self, args):

@@ -1,0 +1,10 @@
+{
+    "build_args": {
+        "DB_OPENVEO_USER_PASSWD": "small_secret",
+        "DB_OPENVEO_OPERATOR_PASSWD": "big_secret",
+        "DB_ADMIN_OPERATOR_PASSWD": "you_never_guess_this_AH_AH_AH_AH",
+        "APP_SUPER_ADMIN_NAME": "super",
+        "APP_SUPER_ADMIN_EMAIL": "super@foo.org",
+        "APP_SUPER_ADMIN_PASSWD": "azerty"
+    }
+}

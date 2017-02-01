@@ -1,7 +1,0 @@
-{
-    "build_args": {
-        "ADMIN_OPERATOR_PASSWD": "huge_secret",
-        "OPENVEO_OPERATOR_PASSWD": "big_secret",
-        "OPENVEO_USER_PASSWD": "small_secret"
-    }
-}

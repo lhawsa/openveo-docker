@@ -1,0 +1,12 @@
+#!/bin/bash
+
+cat <<EOF
+{
+  "watcher": {
+    "fileName" : "/var/log/openveo-watcher.log",
+    "level" : "info",
+    "maxFileSize" : 1048576,
+    "maxFiles" : 2
+  }
+}
+EOF

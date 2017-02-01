@@ -1,0 +1,9 @@
+#!/bin/bash
+
+cat <<EOF
+{
+  "videoTmpDir" : "/tmp/videos",
+  "maxConcurrentPublish" : 3,
+  "metadataFileName" : ".session"
+}
+EOF

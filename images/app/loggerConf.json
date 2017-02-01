@@ -1,0 +1,18 @@
+#!/bin/bash
+
+cat <<EOF
+{
+  "app" : {
+    "fileName" : "/var/log/openveo/openveo.log",
+    "level" : "info",
+    "maxFileSize" : 1048576,
+    "maxFiles" : 2
+  },
+  "ws" : {
+    "fileName" : "/var/log/openveo/openveo-ws.log",
+    "level" : "info",
+    "maxFileSize" : 1048576,
+    "maxFiles" : 2
+  }
+}
+EOF
