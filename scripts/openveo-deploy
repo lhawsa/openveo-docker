@@ -6,6 +6,9 @@ import json
 import os
 import argparse
 import string
+import time
+import subprocess
+import traceback
 
 
 USED_BUILD_ARGS = {
@@ -24,20 +27,53 @@ USED_BUILD_ARGS = {
     }
 
 
-COL_GREEN = '\033[92m'
-COL_BLUE = '\033[94m'
-COL_END = '\033[0m'
+LINKS = {
+    'app': ['db'],
+}
+
+
+ORDERED_TEMPLATES = ['db', 'app']
+
+
+ANSI_RED            = '\x1b[31m'
+ANSI_GREEN          = '\x1b[32m'
+ANSI_YELLOW         = '\x1b[33m'
+ANSI_BLUE           = '\x1b[34m'
+ANSI_LIGHT_RED      = '\x1b[91m'
+ANSI_CYAN           = '\x1b[36m'
+ANSI_WHITE          = '\x1b[97m'
+ANSI_DEFAULT_COLOR  = '\x1b[39m'
+
+ANSI_BOLD           = '\x1b[1m'
+ANSI_COLUMN_50      = '\x1b[50G'
+ANSI_RESET          = '\x1b[0m'
+
+
+STATUS_TO_COLORS = {
+    'OK':      ANSI_GREEN,
+    'FAILED':  ANSI_LIGHT_RED,
+    'ERROR':   ANSI_RED,
+}
+
+
+class BaseError(Exception):
+    pass
+
+
+class BadExitStatusError(BaseError):
+    pass
 
 
 class ArgumentParser(argparse.ArgumentParser):
-    ACTIONS = 'build', 'nop'
+    ACTIONS = 'build', 'purge', 'create', 'remove', 'start', 'stop',
 
     def __init__(self):
         argparse.ArgumentParser.__init__(self)
         self.add_argument("-c", "--config", default=None, type=str, metavar='CONFIG')
+        self.add_argument("-v", "--verbose", default=False, action="store_true")
         self.add_argument("-p", "--prefix", default="default", dest="prefix", type=str, metavar='PREFIX')
         self.add_argument(dest="action", nargs=1, type=str, choices=self.ACTIONS, default=None)
-        self.add_argument(dest="images", nargs='*', type=str, metavar='IMG')
+        self.add_argument(dest="templates", nargs='*', type=str, metavar='TMPL')
 
     def parse_args(self, argv):
         args = argparse.ArgumentParser.parse_args(self, argv)
@@ -49,15 +85,17 @@ class Application:
         self._argv = argv
         self._argparser = ArgumentParser()
         self._config = None
+        self._args = None
+        self._step = False
 
     def getRootDir(self):
         return os.path.abspath("%s/../.." % __file__)
 
-    def makeBuildArgs(self, args, image):
+    def makeBuildArgs(self, template):
         build_args = {}
 
         try:
-            used_build_args = USED_BUILD_ARGS[image]
+            used_build_args = USED_BUILD_ARGS[template]
         except KeyError:
             used_build_args = []
 
@@ -70,7 +108,8 @@ class Application:
         cmd = ' '.join(cmd)
         return cmd
 
-    def loadConfig(self, args):
+    def loadConfig(self):
+        args = self._args
         if args.config==None:
             fn = "%s/conf/%s.json" % (self.getRootDir(), args.prefix)
         else:
@@ -78,39 +117,187 @@ class Application:
         self._config = json.loads(open(fn).read())
         self._config['build_args']['COMMON_PREFIX'] = args.prefix
 
+    def callAndCatch(self, f, *args, **kwargs):
+        try:
+            f(*args, **kwargs)
+        except BaseError:
+            tb = None
+        except:
+            tb = traceback.format_exc()
+        else:
+            return
+
+        if tb != None:
+            self.writeVerbose(ANSI_RED + tb + ANSI_DEFAULT_COLOR)
+        if self._step:
+            self.stepOut('ERROR')
+
     def __call__(self):
         os.chdir(self.getRootDir())
         args = self._argparser.parse_args(self._argv)
-        if len(args.images)==0:
-            args.images = sorted(USED_BUILD_ARGS.keys())
+        self._args = args
+        if len(args.templates)==0:
+            args.templates = ORDERED_TEMPLATES
 
-        self.loadConfig(args)
+        self.loadConfig()
         action = args.action[0]
         try:
             f = getattr(self, "do%s%s" % (action[0].upper(), action[1:].lower()))
         except:
             f = self.printHelp
-        f(args)
+        f()
 
-    def printHelp(self, args):
+    def printHelp(self):
         self._argparser.print_help()
 
     def system(self, cmd):
-        print(COL_BLUE + "* " + COL_END + COL_GREEN + cmd + COL_END)
-        sts = os.system(cmd)
-        if sts != 0:
-            sys.exit(-1)
+        self.writeVerbose(ANSI_CYAN + cmd + ANSI_DEFAULT_COLOR + "\n")
+        p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        while True:
+            ln = p.stdout.readline()
+            if len(ln)==0:
+                break
+            ln = ln.decode('utf-8')
+            self.writeVerbose(ln)
+        p.wait()
+        if p.returncode == 0:
+            return
+        self.writeVerbose(ANSI_CYAN + "*** unexpected exit status %d" % p.returncode + ANSI_DEFAULT_COLOR + "\n")
+        raise BadExitStatusError()
 
-    def doBuild(self, args):
-        self.system("docker build -t common images/common")
-        for img in args.images:
-            cmd = "docker build "
-            cmd += self.makeBuildArgs(args, img)
-            cmd += " -t %s-%s images/%s" % (args.prefix, img, img)
-            self.system(cmd)
+    def getImageName(self, tmpl):
+        if tmpl=='common':
+            return tmpl
+        else:
+            return '%s-%s' % (self._args.prefix, tmpl)
 
-    def doNop(self, args):
-        print('Nop !')
+    def getContainerName(self, tmpl, id=0):
+        name = self.getImageName(tmpl)
+        return "%s0" % name
+
+    def getLinks(self, tmpl):
+        try:
+            links = LINKS[tmpl]
+        except KeyError:
+            links = []
+        links = map(self.getContainerName, links)
+        return links
+
+    def build(self, tmpl):
+        name = self.getImageName(tmpl)
+        self.stepIn("Building '%s' image..." % name)
+        cmd = "docker build "
+        cmd += self.makeBuildArgs(tmpl)
+        cmd += " -t %s templates/%s" % (name, tmpl)
+        self.system(cmd)
+        self.stepOut()
+
+    def purge(self, tmpl):
+        name = self.getImageName(tmpl)
+        self.stepIn("Purging '%s' image..." % name)
+        cmd = "docker rmi %s" % name
+        self.system(cmd)
+        self.stepOut()
+
+    def write(self, s):
+        sys.stdout.write(s)
+        sys.stdout.flush()
+
+    def writeVerbose(self, s):
+        if not self._args.verbose:
+            return
+        self.write(s)
+
+    def stepIn(self, title):
+        if self._step:
+            raise AssertionError()
+        self._step = True
+        self.write(ANSI_BOLD + ANSI_WHITE + "* %s" % title)
+        if self._args.verbose:
+            self.write("\n")
+        self.write(ANSI_RESET)
+
+    def stepOut(self, status="OK"):
+        if not self._step:
+            raise AssertionError()
+        self.write(ANSI_WHITE + ANSI_BOLD)
+        try:
+            col = STATUS_TO_COLORS[status]
+        except KeyError:
+            col = ANSI_YELLOW
+        if self._args.verbose:
+            self.write(" ---> ")
+        else:
+            self.write(ANSI_COLUMN_50)
+        self.write("[" + col + status + ANSI_DEFAULT_COLOR + "]\n")
+        if self._args.verbose:
+            self.write("\n")
+        self.write(ANSI_RESET)
+        self._step = False
+
+    def create(self, tmpl, id=0):
+        img = self.getImageName(tmpl)
+        name = self.getContainerName(tmpl,id)
+        self.stepIn("Creating container '%s'..." % name)
+        links = self.getLinks(tmpl)
+        links = map(lambda x: "--link %s" % x, links)
+        links = ' '.join(links)
+        cmd = "docker create -h %s --name %s %s %s" % (name, name, links, img)
+        self.system(cmd)
+        self.stepOut()
+
+    def remove(self, tmpl, id=0):
+        name = self.getContainerName(tmpl,id)
+        self.stepIn("Removing container '%s'" % name)
+        cmd = "docker rm %s" % name
+        self.system(cmd)
+        self.stepOut()
+
+    def start(self, tmpl, id=0):
+        name = self.getContainerName(tmpl,id)
+        self.stepIn("Starting container '%s'" % name)
+        cmd = "docker start %s" % name
+        self.system(cmd)
+        self.stepOut()
+
+    def stop(self, tmpl, id=0):
+        name = self.getContainerName(tmpl,id)
+        self.stepIn("Stopping container '%s'" % name)
+        cmd = "docker stop %s" % name
+        self.system(cmd)
+        self.stepOut()
+
+    def doBuild(self):
+        args = self._args
+        templates = ['common'] + args.templates
+        for tmpl in templates:
+            self.callAndCatch(self.build, tmpl)
+
+    def doPurge(self):
+        args = self._args
+        templates = ['common'] + args.templates
+        for tmpl in templates:
+            self.callAndCatch(self.purge, tmpl)
+
+    def doCreate(self):
+        args = self._args
+        for tmpl in args.templates:
+            self.callAndCatch(self.create, tmpl)
+
+    def doRemove(self):
+        args = self._args
+        for tmpl in args.templates:
+            self.callAndCatch(self.remove, tmpl)
+
+    def doStart(self):
+        args = self._args
+        for tmpl in args.templates:
+            self.callAndCatch(self.start, tmpl)
+
+    def doStop(self):
+        args = self._args
+        for tmpl in reversed(args.templates):
+            self.callAndCatch(self.stop, tmpl)
 
 
 def main():

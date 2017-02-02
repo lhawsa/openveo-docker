@@ -1,0 +1,10 @@
+{
+    "build_args": {
+        "DB_OPENVEO_USER_PASSWD": "aaa",
+        "DB_OPENVEO_OPERATOR_PASSWD": "bbb",
+        "DB_ADMIN_OPERATOR_PASSWD": "ccc",
+        "APP_SUPER_ADMIN_NAME": "ddd",
+        "APP_SUPER_ADMIN_EMAIL": "eee@fff.ggg",
+        "APP_SUPER_ADMIN_PASSWD": "hhh"
+    }
+}
